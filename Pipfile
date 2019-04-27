@@ -1,0 +1,21 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+flake8 = "*"
+ipdb = "*"
+pytest = "*"
+yapf = "*"
+
+[packages]
+pprint = "*"
+pysnmp = "*"
+pyyaml = "*"
+pysmi = "*"
+structlog = "*"
+docopt = "*"
+
+[requires]
+python_version = "3.7"
