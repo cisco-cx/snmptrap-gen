@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1060749d350484d6637a7b330c87679a42a93a693a047afc7d1cf36c9f720017"
+            "sha256": "fcd0c24662d33f9f7de6633bbfe5461c3cd87ff0e046fee5511142da514417e6"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -28,6 +28,7 @@
                 "sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3",
                 "sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce"
             ],
+            "index": "pypi",
             "version": "==3.11"
         },
         "pprint": {
@@ -42,6 +43,7 @@
                 "sha256:da2420fe13a9452d8ae97a0e478adde1dee153b11ba832a95b223a2ba01c10f7",
                 "sha256:da6b43a8c9ae93bc80e2739efb38cc776ba74a886e3e9318d65fe81a8b8a2c6e"
             ],
+            "index": "pypi",
             "version": "==0.4.5"
         },
         "pycryptodomex": {
@@ -75,6 +77,7 @@
                 "sha256:f958585528569df70ec9810576cd35196e30ff7e144733cfca58a7c4a94fe85c",
                 "sha256:fa555f6a1f5840835f511631048dbba423072d1c64a749ef5cfae01642988ff6"
             ],
+            "index": "pypi",
             "version": "==3.8.1"
         },
         "pysmi": {
@@ -115,7 +118,12 @@
                 "sha256:3350809f0555b11f552448330d0b52d5f24c91a322ea4a15ef22629740f3761c",
                 "sha256:d16a0141ec1a18405cd4ce8b4613101da75da0e9a7aec5bdd4fa804d0e0eba73"
             ],
+            "index": "pypi",
             "version": "==1.12.0"
+        },
+        "snmptrap-gen": {
+            "editable": true,
+            "path": "."
         },
         "structlog": {
             "hashes": [
@@ -127,6 +135,14 @@
         }
     },
     "develop": {
+        "appnope": {
+            "hashes": [
+                "sha256:5b26757dc6f79a3b7dc9fab95359328d5747fcb2409d331ea66d0272b90ab2a0",
+                "sha256:8b995ffe925347a2138d7ac0fe77155e4311a0ea6d6da4f5128fe4b3cbe5ed71"
+            ],
+            "markers": "sys_platform == 'darwin'",
+            "version": "==0.1.0"
+        },
         "atomicwrites": {
             "hashes": [
                 "sha256:03472c30eb2c5d1ba9227e4c2ca66ab8287fbfbbda3888aa93dc2e28fc6811b4",
@@ -182,7 +198,6 @@
                 "sha256:54c5a8aa1eadd269ac210b96923688ccf01ebb2d0f21c18c3c717909583579a8",
                 "sha256:e840810029224b56cd0d9e7719dc3b39cf84d577f8ac686547c8ba7a06eeab26"
             ],
-            "markers": "python_version >= '3.4'",
             "version": "==7.5.0"
         },
         "ipython-genutils": {
@@ -299,6 +314,7 @@
                 "sha256:3350809f0555b11f552448330d0b52d5f24c91a322ea4a15ef22629740f3761c",
                 "sha256:d16a0141ec1a18405cd4ce8b4613101da75da0e9a7aec5bdd4fa804d0e0eba73"
             ],
+            "index": "pypi",
             "version": "==1.12.0"
         },
         "traitlets": {

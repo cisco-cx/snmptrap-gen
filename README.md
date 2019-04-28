@@ -19,7 +19,8 @@ git clone git@github.com:cisco-cx/snmptrap-gen.git
 cd snmptrap-gen
 make deps
 pipenv shell
-./snmptrap-gen.py STARENT-MIB
+pipenv install -d
+snmptrap-gen STARENT-MIB
 ```
 
 ## Notes

@@ -59,11 +59,6 @@ DefaultTypeToValueMap = {
 }
 
 
-def main(args):
-    t = TrapGen(args)
-    t.run()
-
-
 class TrapNotif(object):
     def __init__(self, mibObj, oidObj, num_oid, str_oid, label):
         self.mibObj = mibObj
@@ -270,7 +265,10 @@ class TrapGen(object):
             traps.append(tn)
         return traps
 
-
-if __name__ == '__main__':
+def main():
     args = docopt(__doc__)
-    main(args)
+    t = TrapGen(args)
+    t.run()
+
+if __name__ == "__main__":
+    main()

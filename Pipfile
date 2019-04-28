@@ -10,12 +10,17 @@ pytest = "*"
 yapf = "*"
 
 [packages]
-pprint = "*"
-pysnmp = "*"
-pyyaml = "*"
-pysmi = "*"
-structlog = "*"
-docopt = "*"
+docopt = ">=0.6.2"
+ply = ">=3.11"
+pprint = ">=0.1"
+pyasn1 = ">=0.4.5"
+pycryptodomex = ">=3.8.1"
+pysmi = ">=0.3.4"
+pysnmp = ">=4.4.9"
+six = ">=1.12.0"
+structlog = ">=19.1.0"
+PyYAML = ">=5.1"
+snmptrap-gen = {editable = true,path = "."}
 
 [requires]
 python_version = "3.7"
