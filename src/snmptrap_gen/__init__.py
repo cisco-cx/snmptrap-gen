@@ -39,23 +39,23 @@ log = structlog.get_logger()
 # Main Program
 
 DefaultTypeToValueMap = {
-    'Counter32': 1000,
-    'DateAndTime': '1992-5-26,13:30:15.0,-4:0',
+    'DateAndTime': '2019-1-28,12:00:01.0,-4:0',
     'DisplayString': 'dummy_display_string',
-    'Gauge32': 99,
     'InetAddress': '1.1.1.1',
-    'InetAddressType': 'ipv4',  # http://net-snmp.sourceforge.net/docs/mibs/INET-ADDRESS-MIB.txt
-    'Integer32': 9999,
-    'IpAddress': '1.1.1.1',
+    'InetAddressType': 'ipv4',
     'Ipv6Address': OctetString('aaaaaaaaaaaaaaaa'),
-    'OctetString': OctetString('bb'),
-    'StarENBID': '2',
-    'StarLongDurTimeoutAction': '3',
-    'StarOSPFNeighborState': '4',
+    'pysnmp.proto.rfc1902.Counter32': 10,
+    'pysnmp.proto.rfc1902.Gauge32': 20,
+    'pysnmp.proto.rfc1902.Integer32': 30,
+    'pysnmp.proto.rfc1902.IpAddress': '1.1.1.1',
+    'pysnmp.proto.rfc1902.OctetString': OctetString('abcdef'),
+    'pysnmp.proto.rfc1902.Unsigned32': 40,
+    'StarENBID': 1,
+    'StarentCardType': 2,
+    'StarLongDurTimeoutAction': 3,
+    'StarOSPFNeighborState': 4,
     'StarShortName': 'dummy_shortname',
-    'StarentCardType': '1',
-    'TruthValue': 'false',
-    'Unsigned32': 97,
+    'TruthValue': 'true',
 }
 
 
@@ -78,8 +78,12 @@ class TrapNotif(object):
 
         varBinds = []
         for subObj in self.subObjs:
-            defval = TrapNotif.TypeToDefaultValue(subObj)
-            varBinds.append((subObj.num_oid, defval))
+            try:
+                defval = TrapNotif.TypeToDefaultValue(subObj)
+                varBinds.append((subObj.num_oid, defval))
+            except Exception as e:
+                log.error("Unable to bind default value", value=defval, num_oid=subObj.num_oid, str_oid=subObj.str_oid)
+                assert False, str(e)
 
         # TODO: Seed these from YAML and/or CMD args.
         txAddress = '::1'
@@ -111,47 +115,18 @@ class TrapNotif(object):
                 print(' = '.join([x.prettyPrint() for x in varBindTx]))
 
     def TypeToDefaultValue(mibObj):
-        # dict_keys([
-        #   <class 'DisplayString'>,
-        #   <class 'pysnmp.proto.rfc1902.IpAddress'>,
-        #   <class 'pysnmp.proto.rfc1902.Unsigned32'>,
-        #   <class 'pysnmp.proto.rfc1902.Gauge32'>,
-        #   <class 'InetAddressType'>,
-        #   <class 'InetAddress'>,
-        #   <class 'pysnmp.proto.rfc1902.Integer32'>,
-        #   <class 'StarentCardType'>,
-        #   <class 'pysnmp.proto.rfc1902.OctetString'>,
-        #   <class 'DateAndTime'>,
-        #   <class 'Ipv6Address'>,
-        #   <class 'StarOSPFNeighborState'>,
-        #   <class 'StarShortName'>,
-        #   <class 'StarENBID'>,
-        #   <class 'StarLongDurTimeoutAction'>,
-        #   <class 'TruthValue'>,
-        #   <class 'pysnmp.proto.rfc1902.Counter32'>
-        # ])
-        _type = mibObj._type
-        c = _type.__name__
+        typeStr = str(mibObj._type)[8:-2]
 
-        # http://snmplabs.com/pysnmp/docs/api-reference.html
-        #   Search for " type"
-
-        log.info("TypeToDefaultValue for", label=mibObj.label, type=str(_type))
         map = DefaultTypeToValueMap
-        if c in map.keys():
+        if typeStr in map.keys():
             try:
-                bare_val = map[c]
+                bare_val = map[typeStr]
                 default_val = mibObj._type(bare_val)
                 return default_val
             except Exception as e:
-                print(e)
-                import ipdb
-                ipdb.set_trace()
-
+                assert "Code Error: " + str(e)
         else:
-            log.warn("Unhandled SNMP default value for type [{}]".format(c))
-            import ipdb
-            ipdb.set_trace()
+            log.warn("Unhandled SNMP default value", type=typeStr)
             assert False  # fail fail fail
 
     def FromMibSymbol(notifObj):
@@ -265,10 +240,12 @@ class TrapGen(object):
             traps.append(tn)
         return traps
 
+
 def main():
     args = docopt(__doc__)
     t = TrapGen(args)
     t.run()
+
 
 if __name__ == "__main__":
     main()
