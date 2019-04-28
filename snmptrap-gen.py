@@ -3,13 +3,13 @@
 
 Usage:
   snmptrap-gen.py MIB-NAME
-  snmptrap-gen.py MIB-NAME [--log-level=<debug|info>]
   snmptrap-gen.py (-h | --help)
 
 Options:
   -h --help                       Show this screen.
-  -l=<level> --log-level=<level>  Log Level [default: info]
 """
+#  snmptrap-gen.py MIB-NAME [--log-level=<debug|info>]
+#  -l=<level> --log-level=<level>  Log Level [default: info]
 
 from docopt import docopt
 import os
@@ -86,8 +86,6 @@ class TrapNotif(object):
             defval = TrapNotif.TypeToDefaultValue(subObj)
             varBinds.append((subObj.num_oid, defval))
 
-        # pp(varBinds)
-
         # TODO: Seed these from YAML and/or CMD args.
         txAddress = '::1'
         txPort = 162
@@ -98,13 +96,7 @@ class TrapNotif(object):
                                privProtocol=usmAesCfb128Protocol)
 
         trapOid = self.num_oid
-        txVarBinds = [('1.3.6.1.4.1.65000.1.1.1.1.1', OctetString('kv1-key')),
-                      ('1.3.6.1.4.1.65000.1.1.1.2.1', OctetString('kv1-val')),
-                      ('1.3.6.1.4.1.65000.1.1.1.1.2', OctetString('kv2-key')),
-                      ('1.3.6.1.4.1.65000.1.1.1.2.2', OctetString('kv2-val'))]
-
         txVarBinds = varBinds
-
         errorIndicationTx, errorStatusTx, errorIndexTx, varBindsTx = next(
             sendNotification(SnmpEngine(OctetString(hexValue='8000000001020304')), userData,
                              Udp6TransportTarget((txAddress, txPort)), ContextData(), 'trap',
@@ -153,9 +145,6 @@ class TrapNotif(object):
         map = DefaultTypeToValueMap
         if c in map.keys():
             try:
-                #                if mibObj.label == 'starPeerAddressIpv6':
-                #                    import ipdb; ipdb.set_trace()
-
                 bare_val = map[c]
                 default_val = mibObj._type(bare_val)
                 return default_val
@@ -168,7 +157,7 @@ class TrapNotif(object):
             log.warn("Unhandled SNMP default value for type [{}]".format(c))
             import ipdb
             ipdb.set_trace()
-            return None
+            assert False  # fail fail fail
 
     def FromMibSymbol(notifObj):
         oidObj, num_oid, str_oid, label, _type = TrapNotif.DecodeMibObj(notifObj)
@@ -234,11 +223,8 @@ class TrapGen(object):
         compiler.addMibCompiler(
             TrapGen.MibBuilder,
             sources=[
-                # TODO: Why don't these work?
-                # "file://" + os.path.abspath('../mibs/custom'),
-                # "file://" + os.path.abspath('../mibs/deps'),
-                # TODO: This works well, but very slow
-                "file://" + os.path.abspath('../mibs/mibs.snmplabs.com/asn1'),
+                # TODO: This works well, but slow for some reason
+                "file://" + os.path.abspath('./mibs.snmplabs.com/asn1'),
                 # TODO: This works the fastest, but hits the internet
                 'http://mibs.snmplabs.com/asn1/@mib@',
             ])

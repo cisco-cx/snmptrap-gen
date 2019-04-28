@@ -1,4 +1,10 @@
 
+
+deps:
+	@if [ ! -d mibs.snmplabs.com ]; then \
+	  git clone https://github.com/cisco-kusanagi/mibs.snmplabs.com.git; \
+	fi
+
 pep8:
 	yapf -i $$(find * -type f -name '*.py')
 	flake8 --ignore=E501 $$(find * -type f -name '*.py' | grep -v examples)
