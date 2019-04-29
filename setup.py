@@ -6,7 +6,7 @@
     https://github.com/cisco-cx/snmptrap-gen
 """
 
-from setuptools import setup, find_packages  # noqa: H301
+from setuptools import setup, find_packages  # noqa: H301,F401
 
 NAME = "snmptrap-gen"
 VERSION = "0.1.0"

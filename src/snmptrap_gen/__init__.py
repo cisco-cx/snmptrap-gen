@@ -2,18 +2,26 @@
 """SNMP Trap Generator.
 
 Usage:
-  snmptrap-gen.py MIB-NAME
-  snmptrap-gen.py (-h | --help)
+  snmptrap-gen send-all-traps-from-mib <mib-name> [--ipv6-host=<ipv6-host> --port=<port>]
+  snmptrap-gen send-trap-name <mib-name> <trap-name> [--ipv6-host=<ipv6-host> --port=<port>]
+  snmptrap-gen (-h | --help)
 
 Options:
-  -h --help                       Show this screen.
+  -6=<ipv6-host>, --ipv6-host=<ipv6-host>  IPV6 Hostname or IP [default: ::1]
+  -p=<port>, --port=<port>                 Port [default: 162]
+  -h --help                                Show this screen
+
+Examples:
+  snmptrap-gen send-all-traps-from-mib STARENT-MIB
+  snmptrap-gen send-trap-name STARENT-MIB starCardTempOverheat
 """
-#  snmptrap-gen.py MIB-NAME [--log-level=<debug|info>]
 #  -l=<level> --log-level=<level>  Log Level [default: info]
+#  snmptrap-gen send-trap-oid <trap-oid> [--ipv6-host=<ipv6-host> --port=<port>]
+#  snmptrap-gen send-trap-oid .1.3.6.1.4.1.8164.2.1
+#  ^ The last two examples are equivalent
 
 from docopt import docopt
 import os
-from pprint import pprint as pp
 
 from pysnmp.smi import builder, view, compiler
 from pysnmp.smi import rfc1902 as smi_rfc1902
@@ -36,7 +44,7 @@ log = structlog.get_logger()
 # debug.setLogger(debug.Debug('all'))
 
 #####################################################################
-# Main Program
+# Configuration
 
 DefaultTypeToValueMap = {
     'DateAndTime': '2019-1-28,12:00:01.0,-4:0',
@@ -58,6 +66,9 @@ DefaultTypeToValueMap = {
     'TruthValue': 'true',
 }
 
+#####################################################################
+# Main Program
+
 
 class TrapNotif(object):
     def __init__(self, mibObj, oidObj, num_oid, str_oid, label):
@@ -69,7 +80,7 @@ class TrapNotif(object):
         self.subObjs = []
 
     def logStr(self):
-        log.debug("Trap Found", label=self.label, num_oid=self.num_oid, str_oid=self.str_oid)
+        log.debug("Trap", label=self.label, num_oid=self.num_oid, str_oid=self.str_oid)
 
     def addSubObject(self, subObj):
         self.subObjs.append(subObj)
@@ -85,14 +96,18 @@ class TrapNotif(object):
                 log.error("Unable to bind default value", value=defval, num_oid=subObj.num_oid, str_oid=subObj.str_oid)
                 assert False, str(e)
 
-        # TODO: Seed these from YAML and/or CMD args.
-        txAddress = '::1'
-        txPort = 162
+        txAddress = TrapGen.Args['--ipv6-host']
+        txPort = TrapGen.Args['--port']
         userData = UsmUserData('user-sha-aes128',
                                'authkey1',
                                'privkey1',
                                authProtocol=usmHMACSHAAuthProtocol,
                                privProtocol=usmAesCfb128Protocol)
+
+        log.info("Sending SNMP Trap", address=txAddress, port=txPort)
+        log.info("  Notification", noname=self.label, oid=self.num_oid)
+        for o in self.subObjs:
+            log.info("  with Object", name=o.label, oid=o.num_oid, type=str(type(o.mibObj.getSyntax()))[8:-2])
 
         trapOid = self.num_oid
         txVarBinds = varBinds
@@ -169,11 +184,12 @@ class TrapSubObj(object):
         TrapSubObj.SeenTypes[_type] = None
 
     def logStr(self):
-        log.debug("SubObject Found", label=self.label, num_oid=self.num_oid, str_oid=self.str_oid, type=self._type)
+        log.debug("TrapObject", label=self.label, num_oid=self.num_oid, str_oid=self.str_oid, type=self._type)
 
 
 class TrapGen(object):
-    # Class (not instance) Variables
+    # Class Variables, not instance variables
+    Args = None
     MibBuilder = builder.MibBuilder()
     MibView = view.MibViewController(MibBuilder)
     notificationType, = MibBuilder.importSymbols('SNMPv2-SMI', 'NotificationType')
@@ -200,28 +216,42 @@ class TrapGen(object):
             ])
         log.info('Attaching MIB compiler', status="done")
 
-        log.info('Loading MIB modules', status="starting"),
-        TrapGen.MibBuilder.loadModules(docopt_args['MIB-NAME'])
-        log.info('Loading MIB modules', status="done"),
-
-        log.info('Indexing MIB objects', status="starting"),
-        # mibViewController
-        log.info('Indexing MIB objects', status="done"),
-
         # Save things
-        self.args = docopt_args
+        TrapGen.Args = docopt_args
         # TrapGen.MibBuilder = mibBuilder
         # TrapGen.MibView = mibView
 
     def run(self):
-        traps = self.getTraps(self.args['MIB-NAME'])
+        # Example Docopt Args
+        # args = {
+        #     '--help': False,
+        #     '--ipv6-host': '::3',
+        #     '--port': '169',
+        #     '<mib-name>': 'STARENT-MIB',
+        #     '<trap-name>': None,
+        #     '<trap-oid>': None,
+        #     'send-all-traps-from-mib': True,
+        #     'send-trap-name': False,
+        #     'send-trap-oid': False
+        # }
 
-        for trap in traps:
+        if TrapGen.Args['send-all-traps-from-mib']:
+            traps = self.getTraps(TrapGen.Args['<mib-name>'])
+            for trap in traps:
+                trap.send()
+
+        elif TrapGen.Args['send-trap-name']:
+            trap = self.getTrap(TrapGen.Args['<mib-name>'], TrapGen.Args['<trap-name>'])
             trap.send()
 
-        pp(TrapSubObj.SeenTypes.keys())
+        else:
+            assert False, "Major Code Error"
 
     def getTraps(self, inputMib):
+        log.info('Loading MIB modules', status="starting"),
+        TrapGen.MibBuilder.loadModules(inputMib)
+        log.info('Loading MIB modules', status="done"),
+
         mib = TrapGen.MibView.mibBuilder.mibSymbols[inputMib]
 
         traps = []
@@ -232,13 +262,30 @@ class TrapGen(object):
 
             notifObj = mib[oidName]
             tn = TrapNotif.FromMibSymbol(notifObj)
-            tn.logStr()
-            for o in tn.subObjs:
-                o.logStr()
-                pass
-
             traps.append(tn)
         return traps
+
+    def getTrap(self, inputMib, trapName):
+        log.info('Loading MIB modules', status="starting"),
+        TrapGen.MibBuilder.loadModules(inputMib)
+        log.info('Loading MIB modules', status="done"),
+
+        mib = TrapGen.MibView.mibBuilder.mibSymbols[inputMib]
+
+        if trapName in mib.keys():
+
+            # Skip over all non-Notifications
+            if not isinstance(mib[trapName], TrapGen.notificationType):
+                log.fatal("Found trap in mib but not Notfication Type", trap_name=trapName, mib=inputMib)
+                assert False
+
+            notifObj = mib[trapName]
+            tn = TrapNotif.FromMibSymbol(notifObj)
+            return tn
+        else:
+            log.fatal("Unable to find trap in mib", trap_name=trapName, mib=inputMib)
+            assert False
+            return None
 
 
 def main():
