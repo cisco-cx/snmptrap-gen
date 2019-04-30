@@ -20,11 +20,9 @@ Examples:
 #  snmptrap-gen send-trap-oid .1.3.6.1.4.1.8164.2.1
 #  ^ The last two examples are equivalent
 
-from docopt import docopt
-import os
+from .snmp_mib_decoder import SnmpMibDecoder
 
-from pysnmp.smi import builder, view, compiler
-from pysnmp.smi import rfc1902 as smi_rfc1902
+from docopt import docopt
 
 from pysnmp.proto.rfc1902 import OctetString
 
@@ -38,15 +36,10 @@ from pysnmp.hlapi import UsmUserData, usmHMACSHAAuthProtocol, \
 import structlog
 log = structlog.get_logger()
 
-#######################################
-# Debugging
-# from pysnmp import debug
-# debug.setLogger(debug.Debug('all'))
-
 #####################################################################
 # Configuration
 
-DefaultTypeToValueMap = {
+DEFAULT_TYPE_TO_VALUE_MAP = {
     'DateAndTime': '2019-1-28,12:00:01.0,-4:0',
     'DisplayString': 'dummy_display_string',
     'InetAddress': '1.1.1.1',
@@ -70,158 +63,8 @@ DefaultTypeToValueMap = {
 # Main Program
 
 
-class TrapNotif(object):
-    def __init__(self, mibObj, oidObj, num_oid, str_oid, label):
-        self.mibObj = mibObj
-        self.oidObj = oidObj
-        self.num_oid = num_oid
-        self.str_oid = str_oid
-        self.label = label
-        self.subObjs = []
-
-    def logStr(self):
-        log.debug("Trap", label=self.label, num_oid=self.num_oid, str_oid=self.str_oid)
-
-    def addSubObject(self, subObj):
-        self.subObjs.append(subObj)
-
-    def send(self):
-
-        varBinds = []
-        for subObj in self.subObjs:
-            try:
-                defval = TrapNotif.TypeToDefaultValue(subObj)
-                varBinds.append((subObj.num_oid, defval))
-            except Exception as e:
-                log.error("Unable to bind default value", value=defval, num_oid=subObj.num_oid, str_oid=subObj.str_oid)
-                assert False, str(e)
-
-        txAddress = TrapGen.Args['--ipv6-host']
-        txPort = TrapGen.Args['--port']
-        userData = UsmUserData('user-sha-aes128',
-                               'authkey1',
-                               'privkey1',
-                               authProtocol=usmHMACSHAAuthProtocol,
-                               privProtocol=usmAesCfb128Protocol)
-
-        log.info("Sending SNMP Trap", address=txAddress, port=txPort)
-        log.info("  Notification", noname=self.label, oid=self.num_oid)
-        for o in self.subObjs:
-            log.info("  with Object", name=o.label, oid=o.num_oid, type=str(type(o.mibObj.getSyntax()))[8:-2])
-
-        trapOid = self.num_oid
-        txVarBinds = varBinds
-        errorIndicationTx, errorStatusTx, errorIndexTx, varBindsTx = next(
-            sendNotification(SnmpEngine(OctetString(hexValue='8000000001020304')), userData,
-                             Udp6TransportTarget((txAddress, txPort)), ContextData(), 'trap',
-                             NotificationType(ObjectIdentity(trapOid)).addVarBinds(*txVarBinds)))
-        if errorIndicationTx:
-            print(errorIndicationTx)
-            print(errorStatusTx)
-            print(errorIndexTx)
-            print(varBindsTx)
-        if errorIndicationTx:
-            print(errorIndicationTx)
-        elif errorStatusTx:
-            print('%s at %s' %
-                  (errorStatusTx.prettyPrint(), errorIndexTx and varBindsTx[int(errorIndexTx) - 1][0] or '?'))
-        else:
-            for varBindTx in varBindsTx:
-                print(' = '.join([x.prettyPrint() for x in varBindTx]))
-
-    def TypeToDefaultValue(mibObj):
-        typeStr = str(mibObj._type)[8:-2]
-
-        map = DefaultTypeToValueMap
-        if typeStr in map.keys():
-            try:
-                bare_val = map[typeStr]
-                default_val = mibObj._type(bare_val)
-                return default_val
-            except Exception as e:
-                assert "Code Error: " + str(e)
-        else:
-            log.warn("Unhandled SNMP default value", type=typeStr)
-            assert False  # fail fail fail
-
-    def FromMibSymbol(notifObj):
-        oidObj, num_oid, str_oid, label, _type = TrapNotif.DecodeMibObj(notifObj)
-        tn = TrapNotif(notifObj, oidObj, num_oid, str_oid, label)
-
-        for subObjTuple in notifObj.getObjects():
-            subObj = TrapGen.MibView.mibBuilder.mibSymbols[subObjTuple[0]][subObjTuple[1]]
-            oidObj, num_oid, str_oid, label, _type = TrapNotif.DecodeMibObj(subObj)
-            tsub = TrapSubObj(subObj, oidObj, num_oid, str_oid, label, _type)
-            tn.addSubObject(tsub)
-
-        return tn
-
-    def DecodeMibObj(mibObj):
-        num_oid = str.join('.', [str(i) for i in mibObj.getName()])
-        oidObj = smi_rfc1902.ObjectIdentity(num_oid)
-        oidObj.resolveWithMib(TrapGen.MibView)
-        str_oid = str.join('.', oidObj.getLabel())
-        label = mibObj.getLabel()
-        if getattr(mibObj, "getSyntax", None):
-            _type = type(mibObj.getSyntax())
-        else:
-            _type = None  # Only subObjs's have the type in getSyntax
-        return (oidObj, num_oid, str_oid, label, _type)
-
-
-class TrapSubObj(object):
-    SeenTypes = {}
-
-    def __init__(self, mibObj, oidObj, num_oid, str_oid, label, _type):
-        self.mibObj = mibObj
-        self.oidObj = oidObj
-        self.num_oid = num_oid
-        self.str_oid = str_oid
-        self.label = label
-        self._type = _type
-
-        # TrapSubObj.SeenTypes[_type.__name__] = None
-        TrapSubObj.SeenTypes[_type] = None
-
-    def logStr(self):
-        log.debug("TrapObject", label=self.label, num_oid=self.num_oid, str_oid=self.str_oid, type=self._type)
-
-
-class TrapGen(object):
-    # Class Variables, not instance variables
-    Args = None
-    MibBuilder = builder.MibBuilder()
-    MibView = view.MibViewController(MibBuilder)
-    notificationType, = MibBuilder.importSymbols('SNMPv2-SMI', 'NotificationType')
-
-    def __init__(self, docopt_args):
-
-        log.info("Input Args", args=docopt_args)
-
-        # Create MIB loader/builder
-
-        # Attach PySMI MIB compiler
-        #   The MIB compiler will compile MIB files into python files, and
-        #     store them on your system in a cache directory under ~/.pysnmp/mibs
-        #   It only needs to do this once as it encounters new MIBs, and not
-        #     every time you run this program.
-        log.info('Attaching MIB compiler', status="starting")
-        compiler.addMibCompiler(
-            TrapGen.MibBuilder,
-            sources=[
-                # TODO: This works well, but slow for some reason
-                "file://" + os.path.abspath('./mibs.snmplabs.com/asn1'),
-                # TODO: This works the fastest, but hits the internet
-                'http://mibs.snmplabs.com/asn1/@mib@',
-            ])
-        log.info('Attaching MIB compiler', status="done")
-
-        # Save things
-        TrapGen.Args = docopt_args
-        # TrapGen.MibBuilder = mibBuilder
-        # TrapGen.MibView = mibView
-
-    def run(self):
+class SnmpTrapGen(object):
+    def __init__(self, args):
         # Example Docopt Args
         # args = {
         #     '--help': False,
@@ -234,63 +77,83 @@ class TrapGen(object):
         #     'send-trap-name': False,
         #     'send-trap-oid': False
         # }
+        self.args = args
+        self.smd = SnmpMibDecoder()
 
-        if TrapGen.Args['send-all-traps-from-mib']:
-            traps = self.getTraps(TrapGen.Args['<mib-name>'])
-            for trap in traps:
-                trap.send()
-
-        elif TrapGen.Args['send-trap-name']:
-            trap = self.getTrap(TrapGen.Args['<mib-name>'], TrapGen.Args['<trap-name>'])
-            trap.send()
-
+    def run(self):
+        if self.args['send-all-traps-from-mib']:
+            trap_oids = self.smd.getTrapNumOidsByMib(self.args['<mib-name>'])
+            for trap_oid in trap_oids:
+                trap = self.createDummyTrap(trap_oid)
+                self.sendTrap(trap)
+        elif self.args['send-trap-name']:
+            trap_oid = self.smd.getTrapNumOidBySymbols(self.args['<mib-name>'], self.args['<trap-name>'])
+            trap = self.createDummyTrap(trap_oid)
+            self.sendTrap(trap)
         else:
             assert False, "Major Code Error"
 
-    def getTraps(self, inputMib):
-        log.info('Loading MIB modules', status="starting"),
-        TrapGen.MibBuilder.loadModules(inputMib)
-        log.info('Loading MIB modules', status="done"),
+    def createDummyTrap(self, num_oid):
+        trap = {
+            'trap_oid': num_oid,
+            'var_binds': [],
+        }
+        trap_oid = num_oid
+        var_oids = self.smd.getVarNumOidsByTrap(trap_oid)
+        for var_oid in var_oids:
+            type_str = self.smd.getTypeByNumOid(var_oid)
+            default_value = self.getDefaultValueByType(var_oid, type_str)
+            tup = (var_oid, default_value)
+            trap['var_binds'].append(tup)
+        return trap
 
-        mib = TrapGen.MibView.mibBuilder.mibSymbols[inputMib]
-
-        traps = []
-        for oidName in mib.keys():
-            # Skip over all non-Notifications
-            if not isinstance(mib[oidName], TrapGen.notificationType):
-                continue
-
-            notifObj = mib[oidName]
-            tn = TrapNotif.FromMibSymbol(notifObj)
-            traps.append(tn)
-        return traps
-
-    def getTrap(self, inputMib, trapName):
-        log.info('Loading MIB modules', status="starting"),
-        TrapGen.MibBuilder.loadModules(inputMib)
-        log.info('Loading MIB modules', status="done"),
-
-        mib = TrapGen.MibView.mibBuilder.mibSymbols[inputMib]
-
-        if trapName in mib.keys():
-
-            # Skip over all non-Notifications
-            if not isinstance(mib[trapName], TrapGen.notificationType):
-                log.fatal("Found trap in mib but not Notfication Type", trap_name=trapName, mib=inputMib)
-                assert False
-
-            notifObj = mib[trapName]
-            tn = TrapNotif.FromMibSymbol(notifObj)
-            return tn
+    def getDefaultValueByType(self, num_oid, type_str):
+        map = DEFAULT_TYPE_TO_VALUE_MAP
+        if type_str in map.keys():
+            try:
+                bare_val = map[type_str]
+                default_val = self.smd.castValueByNumOidType(num_oid, bare_val)
+                return default_val
+            except Exception as e:
+                assert "Code Error: " + str(e)
         else:
-            log.fatal("Unable to find trap in mib", trap_name=trapName, mib=inputMib)
-            assert False
-            return None
+            log.warn("Unhandled SNMP default value", type=type_str)
+            assert False  # fail fail fail
+
+    def sendTrap(self, trap):
+        trap_oid = trap['trap_oid']
+
+        txAddress = self.args['--ipv6-host']
+        txPort = self.args['--port']
+        userData = UsmUserData('user-sha-aes128',
+                               'authkey1',
+                               'privkey1',
+                               authProtocol=usmHMACSHAAuthProtocol,
+                               privProtocol=usmAesCfb128Protocol)
+
+        log.info("Sending SNMP Trap", address=txAddress, port=txPort)
+        log.info("  Notification", name=self.smd.getNameByNumOid(trap_oid), oid=trap_oid)
+        for var_bind in trap['var_binds']:
+            var_oid = var_bind[0]
+            var_val = var_bind[1]
+            log.info("  with Object", name=self.smd.getNameByNumOid(var_oid), oid=var_oid, type=type(var_val))
+
+        trapOid = trap['trap_oid']
+        txVarBinds = trap['var_binds']
+        errorIndicationTx, errorStatusTx, errorIndexTx, varBindsTx = next(
+            sendNotification(SnmpEngine(OctetString(hexValue='8000000001020304')), userData,
+                             Udp6TransportTarget((txAddress, txPort)), ContextData(), 'trap',
+                             NotificationType(ObjectIdentity(trapOid)).addVarBinds(*txVarBinds)))
+        if errorIndicationTx:
+            print(errorIndicationTx)
+        else:
+            for varBindTx in varBindsTx:
+                print(' = '.join([x.prettyPrint() for x in varBindTx]))
 
 
 def main():
     args = docopt(__doc__)
-    t = TrapGen(args)
+    t = SnmpTrapGen(args)
     t.run()
 
 
