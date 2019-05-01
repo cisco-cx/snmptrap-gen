@@ -4,6 +4,7 @@ from pysnmp import debug as pysnmp_debug
 from pysnmp.smi import builder, view, compiler
 from pysnmp.hlapi import ObjectIdentity
 
+import functools
 import os
 
 DEFAULT_MIB_SEARCH_PATHS = [
@@ -16,9 +17,11 @@ DEFAULT_MIB_SEARCH_PATHS = [
 
 DEFAULT_MIB_LOAD_MODULES = ['IF-MIB', 'SNMPv2-SMI', 'STARENT-MIB']
 
+DEFAULT_CACHE_SIZE = 1024
+
 
 class SnmpMibDecoder(object):
-    __slots__ = ['mibBuilder', 'mibView']  # , 'memoizeNumOidToStrOid' 'memoizeNumOidToType']
+    __slots__ = ['mibBuilder', 'mibView']
 
     def __init__(self, additional_mib_search_paths=[], additional_mib_load_modules=[], debug=False, load_texts=True):
         if debug:  # Enable Debugging
@@ -35,8 +38,6 @@ class SnmpMibDecoder(object):
         compiler.addMibCompiler(self.mibBuilder, sources=mib_sources)
         self.mibBuilder.loadModules(*mib_modules)
         self.mibView = view.MibViewController(self.mibBuilder)
-        # self.memoizeNumOidToStrOid = {}
-        # self.memoizeNumOidToType = {}
 
     def cleanNumOid(self, num_oid):
         # strip first char from num_oid if starts with '.'
@@ -45,18 +46,20 @@ class SnmpMibDecoder(object):
         else:
             return num_oid
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getNameByNumOid(self, num_oid):
         str_oid = self.getStrOidByNumOid(num_oid)
         if str_oid is None:
             return None
         return str_oid.split('.')[-1]
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getDescByNumOid(self, num_oid):
         try:
             num_oid = self.cleanNumOid(num_oid)
             tuple_of_nums = tuple([int(i) for i in num_oid.split('.')])
-            modName, symName, suffix = self.mibView.getNodeLocation(tuple_of_nums)
-            mibNode, = self.mibBuilder.importSymbols(modName, symName)
+            modName, symName, suffix = self._getNodeLocation(tuple_of_nums)
+            mibNode, = self._importSymbols(modName, symName)
             desc = mibNode.getDescription()
             if len(desc) == 0:
                 return None
@@ -66,12 +69,13 @@ class SnmpMibDecoder(object):
             print(e)
             return None
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getUnitsByNumOid(self, num_oid):
         try:
             num_oid = self.cleanNumOid(num_oid)
             tuple_of_nums = tuple([int(i) for i in num_oid.split('.')])
-            modName, symName, suffix = self.mibView.getNodeLocation(tuple_of_nums)
-            mibNode, = self.mibBuilder.importSymbols(modName, symName)
+            modName, symName, suffix = self._getNodeLocation(tuple_of_nums)
+            mibNode, = self._importSymbols(modName, symName)
             units = mibNode.getUnits()
             if len(units) == 0:
                 return None
@@ -81,6 +85,7 @@ class SnmpMibDecoder(object):
             print(e)
             return None
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getStrOidByNumOid(self, num_oid):
         try:
             num_oid = self.cleanNumOid(num_oid)
@@ -101,12 +106,13 @@ class SnmpMibDecoder(object):
             print(e)
             return None
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getTypeByNumOid(self, num_oid):
         try:
             num_oid = self.cleanNumOid(num_oid)
             tuple_of_nums = tuple([int(i) for i in num_oid.split('.')])
-            modName, symName, suffix = self.mibView.getNodeLocation(tuple_of_nums)
-            mibNode, = self.mibBuilder.importSymbols(modName, symName)
+            modName, symName, suffix = self._getNodeLocation(tuple_of_nums)
+            mibNode, = self._importSymbols(modName, symName)
             # Trims output "<class 'whatwewant'>"
             _type = str(type(mibNode.getSyntax()))[8:-2]
             return _type
@@ -115,6 +121,7 @@ class SnmpMibDecoder(object):
             print(e)
             return None
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getTrapNumOidsByMib(self, mib_name):
         try:
             mib = self.mibView.mibBuilder.mibSymbols[mib_name]
@@ -132,12 +139,13 @@ class SnmpMibDecoder(object):
             print(e)
             return None
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getVarNumOidsByTrap(self, num_oid):
         try:
             num_oid = self.cleanNumOid(num_oid)
             tuple_of_nums = tuple([int(i) for i in num_oid.split('.')])
-            modName, symName, suffix = self.mibView.getNodeLocation(tuple_of_nums)
-            mibNode, = self.mibBuilder.importSymbols(modName, symName)
+            modName, symName, suffix = self._getNodeLocation(tuple_of_nums)
+            mibNode, = self._importSymbols(modName, symName)
 
             ret = []
             for subNodeId in mibNode.getObjects():
@@ -150,9 +158,10 @@ class SnmpMibDecoder(object):
             print(e)
             return None
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def getTrapNumOidBySymbols(self, mib_name, trap_name):
         try:
-            mibNode, = self.mibBuilder.importSymbols(mib_name, trap_name)
+            mibNode, = self._importSymbols(mib_name, trap_name)
             num_oid = str.join('.', [str(i) for i in mibNode.getName()])
             return num_oid
         except Exception as e:
@@ -160,12 +169,13 @@ class SnmpMibDecoder(object):
             print(e)
             return None
 
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
     def castValueByNumOidType(self, num_oid, val_to_cast):
         try:
             num_oid = self.cleanNumOid(num_oid)
             tuple_of_nums = tuple([int(i) for i in num_oid.split('.')])
-            modName, symName, suffix = self.mibView.getNodeLocation(tuple_of_nums)
-            mibNode, = self.mibBuilder.importSymbols(modName, symName)
+            modName, symName, suffix = self._getNodeLocation(tuple_of_nums)
+            mibNode, = self._importSymbols(modName, symName)
 
             _type = type(mibNode.getSyntax())
             typed_val = _type(val_to_cast)
@@ -174,6 +184,14 @@ class SnmpMibDecoder(object):
             # Not all OIDs can be decoded, esp if the MIBs have not been loaded
             print(e)
             return None
+
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
+    def _getNodeLocation(self, *args, **kwargs):
+        return self.mibView.getNodeLocation(*args, **kwargs)
+
+    @functools.lru_cache(maxsize=DEFAULT_CACHE_SIZE)
+    def _importSymbols(self, *args, **kwargs):
+        return self.mibBuilder.importSymbols(*args, **kwargs)
 
 
 def main():
