@@ -6,8 +6,8 @@ deps:
 	fi
 
 pep8:
-	yapf -i $$(find * -type f -name '*.py')
-	flake8 --ignore=E501 $$(find * -type f -name '*.py' | grep -v examples)
+	yapf -i $$(find * -type f -name '*.py'| grep -v mibs.snmplabs.com)
+	flake8 --ignore=E501 $$(find * -type f -name '*.py' | grep -v examples | grep -v mibs.snmplabs.com)
 
 test: pep8
 	pytest $$(find * -type f -name '*.py') -v --capture=no
