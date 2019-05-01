@@ -20,7 +20,7 @@ DEFAULT_MIB_LOAD_MODULES = ['IF-MIB', 'SNMPv2-SMI', 'STARENT-MIB']
 class SnmpMibDecoder(object):
     __slots__ = ['mibBuilder', 'mibView']  # , 'memoizeNumOidToStrOid' 'memoizeNumOidToType']
 
-    def __init__(self, additional_mib_search_paths=[], additional_mib_load_modules=[], debug=False):
+    def __init__(self, additional_mib_search_paths=[], additional_mib_load_modules=[], debug=False, load_texts=True):
         if debug:  # Enable Debugging
             pysnmp_debug.setLogger(pysnmp_debug.Debug('all'))
 
@@ -31,6 +31,7 @@ class SnmpMibDecoder(object):
         mib_modules = additional_mib_load_modules + DEFAULT_MIB_LOAD_MODULES
         mib_sources = additional_mib_search_paths + DEFAULT_MIB_SEARCH_PATHS
         self.mibBuilder = builder.MibBuilder()
+        self.mibBuilder.loadTexts = load_texts  # Loads mib text descriptions
         compiler.addMibCompiler(self.mibBuilder, sources=mib_sources)
         self.mibBuilder.loadModules(*mib_modules)
         self.mibView = view.MibViewController(self.mibBuilder)
@@ -46,7 +47,39 @@ class SnmpMibDecoder(object):
 
     def getNameByNumOid(self, num_oid):
         str_oid = self.getStrOidByNumOid(num_oid)
+        if str_oid is None:
+            return None
         return str_oid.split('.')[-1]
+
+    def getDescByNumOid(self, num_oid):
+        try:
+            num_oid = self.cleanNumOid(num_oid)
+            tuple_of_nums = tuple([int(i) for i in num_oid.split('.')])
+            modName, symName, suffix = self.mibView.getNodeLocation(tuple_of_nums)
+            mibNode, = self.mibBuilder.importSymbols(modName, symName)
+            desc = mibNode.getDescription()
+            if len(desc) == 0:
+                return None
+            return desc
+        except Exception as e:
+            # Not all OIDs can be decoded, esp if the MIBs have not been loaded
+            print(e)
+            return None
+
+    def getUnitsByNumOid(self, num_oid):
+        try:
+            num_oid = self.cleanNumOid(num_oid)
+            tuple_of_nums = tuple([int(i) for i in num_oid.split('.')])
+            modName, symName, suffix = self.mibView.getNodeLocation(tuple_of_nums)
+            mibNode, = self.mibBuilder.importSymbols(modName, symName)
+            units = mibNode.getUnits()
+            if len(units) == 0:
+                return None
+            return units
+        except Exception as e:
+            # Not all OIDs can be decoded, esp if the MIBs have not been loaded
+            print(e)
+            return None
 
     def getStrOidByNumOid(self, num_oid):
         try:
@@ -83,16 +116,21 @@ class SnmpMibDecoder(object):
             return None
 
     def getTrapNumOidsByMib(self, mib_name):
-        mib = self.mibView.mibBuilder.mibSymbols[mib_name]
+        try:
+            mib = self.mibView.mibBuilder.mibSymbols[mib_name]
 
-        ret = []
-        for oidName in mib.keys():
-            mibNode = mib[oidName]
-            if str(type(mibNode))[8:-2] != 'NotificationType':
-                continue
-            num_oid = str.join('.', [str(i) for i in mibNode.getName()])
-            ret.append(num_oid)
-        return ret
+            ret = []
+            for oidName in mib.keys():
+                mibNode = mib[oidName]
+                if str(type(mibNode))[8:-2] != 'NotificationType':
+                    continue
+                num_oid = str.join('.', [str(i) for i in mibNode.getName()])
+                ret.append(num_oid)
+            return ret
+        except Exception as e:
+            # Not all OIDs can be decoded, esp if the MIBs have not been loaded
+            print(e)
+            return None
 
     def getVarNumOidsByTrap(self, num_oid):
         try:
@@ -149,16 +187,22 @@ def main():
     print(num_oid)
     print(str_oid)
     print(_type)
+    desc = smd.getDescByNumOid(num_oid)
+    print(desc)
     trap_oids = smd.getTrapNumOidsByMib('STARENT-MIB')
     # print(trap_oids)
-    var_oids = smd.getVarNumOidsByTrap(trap_oids[0])
+    var_oids = smd.getVarNumOidsByTrap(trap_oids[1])
     print(var_oids)
     for var_oid in var_oids:
         str_oid = smd.getStrOidByNumOid(var_oid)
         _type = smd.getTypeByNumOid(var_oid)
+        desc = smd.getDescByNumOid(var_oid)
+        units = smd.getUnitsByNumOid(var_oid)
         print(var_oid)
         print(str_oid)
         print(_type)
+        print(desc)
+        print(units)
     num_oid = smd.getTrapNumOidBySymbols('STARENT-MIB', 'starCardTemperature')
     _type = smd.getTypeByNumOid(num_oid)
     typed_val = smd.castValueByNumOidType(num_oid, 99)
