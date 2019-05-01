@@ -97,7 +97,9 @@ class SnmpMibDecoder(object):
 
             str_segment_count = len(str_oid.split('.'))
 
-            if num_segment_count == str_segment_count:
+            # Ensure the check allows for oids ending with '.0' denoting
+            #   scaler value, which is non-named segment
+            if (num_segment_count == str_segment_count) or (num_segment_count == str_segment_count + 1):
                 return str_oid
             else:
                 return None
@@ -202,10 +204,10 @@ def main():
     num_oid = '.1.3.6.1.4.1.8164.1.2.1.1.16'
     str_oid = smd.getStrOidByNumOid(num_oid)
     _type = smd.getTypeByNumOid(num_oid)
+    desc = smd.getDescByNumOid(num_oid)
     print(num_oid)
     print(str_oid)
     print(_type)
-    desc = smd.getDescByNumOid(num_oid)
     print(desc)
     trap_oids = smd.getTrapNumOidsByMib('STARENT-MIB')
     # print(trap_oids)
@@ -228,6 +230,17 @@ def main():
     print(_type)
     print(typed_val)
     print(type(typed_val))
+
+    # Test a scalar str conversion
+    print("#####")
+    num_oid = '.1.3.6.1.6.3.1.1.4.1.0'
+    str_oid = smd.getStrOidByNumOid(num_oid)
+    _type = smd.getTypeByNumOid(num_oid)
+    desc = smd.getDescByNumOid(num_oid)
+    print(num_oid)
+    print(str_oid)
+    print(_type)
+    print(desc)
 
 
 if __name__ == "__main__":
