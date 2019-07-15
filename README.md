@@ -1,3 +1,5 @@
+[![Build Status](https://cloud.drone.io/api/badges/cisco-cx/snmptrap-gen/status.svg)](https://cloud.drone.io/cisco-cx/snmptrap-gen)
+
 # snmptrap-gen
 
 Given a MIB name, generates and sends all traps with all OIDs populated with dummy values of the right type
