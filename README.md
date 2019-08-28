@@ -17,7 +17,7 @@ Currently will send traps to [::1]:161 using hard-coded example credentials
 ## Docker Image
 
 ```
-docker pull docker.io/ciscocx/snmptrap-gen
+docker pull docker.io/ciscocx/snmptrap-gen:${DOCKER_TAG}
 ```
 
 Tags: https://console.cloud.google.com/gcr/images/ciscocx/ASIA/snmptrap-gen
@@ -26,13 +26,13 @@ Tags: https://console.cloud.google.com/gcr/images/ciscocx/ASIA/snmptrap-gen
 ## Example (Docker)
 
 ```
-docker run --rm -it docker.io/ciscocx/snmptrap-gen send-all-traps-from-mib STARENT-MIB --port=1162 --ipv6-host=2001:db8::1
+docker run --rm -it docker.io/ciscocx/snmptrap-gen send-all-traps-from-mib STARENT-MIB --port=162 --ipv6-host=2001:db8::1
 ```
 
 **NOTE:** If you want the containerized version of `snmptrap-gen` to send traps to the local machine instead of the IP address of the container, which may not be routable by the receiving side, you can add `--net=host` to your `docker run` command:
 
 ```
-docker run --net=host --rm -it docker.io/ciscocx/snmptrap-gen send-all-traps-from-mib STARENT-MIB --port=1162 --ipv6-host=::1
+docker run --net=host --rm -it docker.io/ciscocx/snmptrap-gen send-all-traps-from-mib STARENT-MIB --port=162 --ipv6-host=ip6-localhost
 ```
 
 ## Example (Python)

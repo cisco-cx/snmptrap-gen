@@ -1,37 +1,39 @@
-FROM python:3.7-slim-stretch
+## STAGE: mibs
+FROM docker.io/ciscocx/mibs:0.2.0 as mibs
 
-## Install git.
+## STAGE: snmptrap-gen
+FROM python:3.7-slim-buster as snmptrap-gen
+
+## Install tools.
 RUN apt-get -y update \
- && apt-get --no-install-recommends -y install git curl gunicorn iproute \
+ && apt-get --no-install-recommends -y install git curl iproute2 jq make \
  && apt-get -y clean \
  && apt-get -y autoremove \
  && rm -rf /var/lib/apt/lists/*
 
-## Using git shenanigans, install MIBs pre-compiled for pysnmp.
-##
-## ref:
-## - https://stackoverflow.com/a/13738951
-## - https://github.com/cisco-kusanagi/mibs.snmplabs.com/tree/master/pysnmp
+## Install mibs and symlink to them for pysnmp.
+ENV SNMP_MIBS_DIR /mibs/mibs.snmplabs.com
+WORKDIR $SNMP_MIBS_DIR
+COPY --from=mibs $SNMP_MIBS_DIR .
 WORKDIR /root/.pysnmp
-RUN git init \
- && git remote add -f origin https://github.com/cisco-kusanagi/mibs.snmplabs.com.git \
- && git config core.sparseCheckout true \
- && echo "pysnmp-with-texts" >> .git/info/sparse-checkout \
- && git pull --depth=1 origin master \
- && ln -s $(pwd)/pysnmp-with-texts $(pwd)/mibs \
- && rm -rf .git
+RUN ln -s $SNMP_MIBS_DIR/pysnmp-with-texts /root/.pysnmp/mibs
 
-## Preload **as much of** requirements.txt as possible.
-## If we don't preload these, small API changes will trigger full deps install.
-WORKDIR /tmp/requirements
-COPY ./requirements.txt ./snmptrap-gen.txt
-RUN pip install -r snmptrap-gen.txt
-
-## Install packages. Install configs.
-WORKDIR /usr/src/app
+## Install snmptrap-gen.
+##
+## ref: https://stackoverflow.com/questions/46503947/how-to-get-pipenv-running-in-docker
+##
+WORKDIR /usr/src/snmptrap-gen
 COPY ./ .
-RUN pip install -e . -r requirements.txt
+RUN pip3 install -U pip pipenv yq \
+ && pipenv install --dev --system --deploy --ignore-pipfile
 
-ENTRYPOINT ["snmptrap-gen"]
+## Install tini.
+##
+## NOTE: This needs to be the last layer added, so that it doesn't bust the layer cache.
+##
+ENV TINI_VERSION v0.18.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
+ENTRYPOINT ["/tini", "--", "snmptrap-gen"]
 CMD ["--help"]
-
