@@ -100,11 +100,12 @@ class SnmpTrapGen(object):
         }
         trap_oid = num_oid
         var_oids = self.smd.getVarNumOidsByTrap(trap_oid)
-        for var_oid in var_oids:
-            type_str = self.smd.getTypeByNumOid(var_oid)
-            default_value = self.getDefaultValueByType(var_oid, type_str)
-            tup = (var_oid, default_value)
-            trap['var_binds'].append(tup)
+        if var_oids != None:
+            for var_oid in var_oids:
+                type_str = self.smd.getTypeByNumOid(var_oid)
+                default_value = self.getDefaultValueByType(var_oid, type_str)
+                tup = (var_oid, default_value)
+                trap['var_binds'].append(tup)
         return trap
 
     def getDefaultValueByType(self, num_oid, type_str):
