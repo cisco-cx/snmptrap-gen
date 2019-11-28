@@ -57,6 +57,7 @@ DEFAULT_TYPE_TO_VALUE_MAP = {
     'StarOSPFNeighborState': 4,
     'StarShortName': 'dummy_shortname',
     'TruthValue': 'true',
+    'InterfaceIndex': 35, # SYNTAX: Integer32 (1..2147483647), Ref - https://github.com/cisco-kusanagi/mibs.snmplabs.com/blob/master/asn1/IF-MIB#L76
 }
 
 #####################################################################
