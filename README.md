@@ -20,9 +20,6 @@ Currently will send traps to [::1]:161 using hard-coded example credentials
 docker pull docker.io/ciscocx/snmptrap-gen:${DOCKER_TAG}
 ```
 
-Tags: https://console.cloud.google.com/gcr/images/ciscocx/ASIA/snmptrap-gen
-
-
 ## Example (Docker)
 
 ```
