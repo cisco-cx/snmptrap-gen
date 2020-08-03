@@ -1,5 +1,5 @@
 ## STAGE: mibs
-FROM docker.io/ciscocx/mibs:0.2.0 as mibs
+FROM docker.io/ciscocx/mibs:0.4.0 as mibs
 
 ## STAGE: snmptrap-gen
 FROM python:3.7-slim-buster as snmptrap-gen
